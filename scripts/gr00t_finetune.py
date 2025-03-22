@@ -35,7 +35,7 @@ class Config:
     """Configuration for GR00T model fine-tuning."""
 
     # Dataset parameters
-    dataset_path: str
+    dataset_path: str = "/home/wangxianhao/data/project/reasoning/openpi/EeureKaaaa/tabletop_dataset"
     """Path to the dataset directory."""
 
     output_dir: str = "/tmp/gr00t"
@@ -51,7 +51,7 @@ class Config:
     max_steps: int = 10000
     """Maximum number of training steps."""
 
-    num_gpus: int = 1
+    num_gpus: int = 4
     """Number of GPUs to use for training."""
 
     save_steps: int = 500
