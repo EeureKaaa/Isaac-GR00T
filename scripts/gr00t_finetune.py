@@ -48,13 +48,13 @@ class Config:
     batch_size: int = 16
     """Batch size per GPU for training."""
 
-    max_steps: int = 10000
+    max_steps: int = 100000
     """Maximum number of training steps."""
 
     num_gpus: int = 4
     """Number of GPUs to use for training."""
 
-    save_steps: int = 500
+    save_steps: int = 5000
     """Number of steps between saving checkpoints."""
 
     # Model parameters

@@ -43,9 +43,9 @@ if __name__ == "__main__":
         default="gr1_arms_waist",
     )
 
-    parser.add_argument("--port", type=int, help="Port number for the server.", default=5555)
+    parser.add_argument("--port", type=int, help="Port number for the server.", default=8000)
     parser.add_argument(
-        "--host", type=str, help="Host address for the server.", default="localhost"
+        "--host", type=str, help="Host address for the server.", default="0.0.0.0"
     )
     # server mode
     parser.add_argument("--server", action="store_true", help="Run the server.")
@@ -107,7 +107,7 @@ if __name__ == "__main__":
         # - action: action.right_hand: (16, 6)
         # - action: action.waist: (16, 3)
         obs = {
-            "video.ego_view": np.random.randint(0, 256, (1, 256, 256, 3), dtype=np.uint8),
+            "video.ego_view": np.random.randint(0, 256, (1, 256, 256, 3), dtype=np.uint8),  
             "state.left_arm": np.random.rand(1, 7),
             "state.right_arm": np.random.rand(1, 7),
             "state.left_hand": np.random.rand(1, 6),
