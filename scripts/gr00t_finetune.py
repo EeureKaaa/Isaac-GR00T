@@ -35,26 +35,26 @@ class Config:
     """Configuration for GR00T model fine-tuning."""
 
     # Dataset parameters
-    dataset_path: str = "/home/wangxianhao/data/project/reasoning/openpi/EeureKaaaa/tabletop_dataset"
+    dataset_path: str = "/home/wangxianhao/data/project/reasoning/openpi/gr00t_dataset/primitive_dataset"
     """Path to the dataset directory."""
 
     output_dir: str = "/tmp/gr00t"
     """Directory to save model checkpoints."""
 
-    data_config: str = "gr1_arms_only"
+    data_config: str = "custom_coin"
     """Data configuration name from DATA_CONFIG_MAP."""
 
     # Training parameters
     batch_size: int = 16
     """Batch size per GPU for training."""
 
-    max_steps: int = 100000
+    max_steps: int = 200000
     """Maximum number of training steps."""
 
-    num_gpus: int = 4
+    num_gpus: int = 1
     """Number of GPUs to use for training."""
 
-    save_steps: int = 5000
+    save_steps: int = 10000
     """Number of steps between saving checkpoints."""
 
     # Model parameters
