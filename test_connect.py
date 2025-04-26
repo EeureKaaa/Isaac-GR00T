@@ -12,13 +12,14 @@ from gr00t.model.policy import Gr00tPolicy
 import argparse
 from pathlib import Path
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_path",
         type=str,
         help="Path to the model checkpoint directory.",
-        default="/home/wangxianhao/data/project/reasoning/Isaac-GR00T/checkpoints/first_try/checkpoint-10000",
+        default="checkpoints/primitive_dataset_v2/checkpoint-60000",
     )
     parser.add_argument(
         "--embodiment_tag",
@@ -53,6 +54,7 @@ def parse_args():
     )
     return parser.parse_args()
 
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +63,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Load Gr00t inference model
+
+
 def load_model(args):
     logger.info("Loading Gr00t inference model...")
 
@@ -86,103 +90,114 @@ def load_model(args):
     return policy
 
 # Process observation and prompt to generate actions
-async def process_observation(policy, observation, prompt):
+
+
+async def process_observation(policy, data):
     '''
     For IsaacGR00T model, the image must expend to video(1 frame)
     and the state must match with config
     '''
+    def process_image(image_array):
+        if not isinstance(image_array, np.ndarray):
+            raise ValueError(
+                f"Image must be a numpy array, got {type(image_array)}")
+        if image_array.shape[-3:-1] != (256, 256):
+            logger.info("Resizing image to 256x256")
+            # Convert to PIL Image for resizing
+        if len(image_array.shape) == 4:  # (1, H, W, C)
+            resized_images = []
+            for img in image_array:
+                pil_img = Image.fromarray(img.astype(np.uint8))
+                resized_img = pil_img.resize((256, 256), Image.BILINEAR)
+                resized_images.append(np.array(resized_img))
+            image_array = np.stack(resized_images)
+        else:  # (H, W, C)
+            pil_img = Image.fromarray(image_array.astype(np.uint8))
+            resized_img = pil_img.resize((256, 256), Image.BILINEAR)
+            image_array = np.array(resized_img)
+        if len(image_array.shape) == 3:  # (H, W, C)
+            image_array = np.expand_dims(image_array, axis=0)  # (1, H, W, C)
+        return image_array
+
+    # Create a new dictionary with processed data and proper keys for GR00T
+    processed_data = {}
+    prompt = data.get('prompt', '')
+    processed_data['annotation.human.action.task_description'] = [prompt]
     
-    # Extract image from observation
-    if 'video.ego_view' in observation and 'video.wrist_view' in observation and 'state.joint_state' in observation:
-        # Convert numpy array to PIL Image if needed
-        ego_image_array = observation['video.ego_view']
-        wrist_image_array = observation['video.wrist_view']
-        joint_state = observation['state.joint_state']
+    # Process all keys, converting image keys to video.* format
+    keys = list(data.keys())
+    for key in keys:
+        if key == 'prompt':
+            continue  # Already handled
+            
+        if 'image' in key:
+            # Convert the client's image keys to GR00T video keys
+            # Example: 'base_image' -> 'video.base_view'
+            #          'base_front_image' -> 'video.base_front_view'
+            #          'wrist_image' -> 'video.wrist_view'
+            
+            # Process the image first
+            processed_image = process_image(data[key])
+            
+            # Determine the video key name
+            # Replace 'image' with 'view' in the key name
+            video_key = f"video.{key.replace('image', 'view')}"
+            processed_data[video_key] = processed_image
+            
+            logger.info(f"Converted '{key}' to '{video_key}' with shape {processed_image.shape}")
+        
+        elif key == 'joint_state' or 'state' in key:
+            # Process joint state
+            state_data = data[key]
+            if not isinstance(state_data, np.ndarray):
+                if isinstance(state_data, list):
+                    state_data = np.array(state_data, dtype=np.float32)
+                else:
+                    raise ValueError(f"State data must be a numpy array or list, got {type(state_data)}")
+            
+            if len(state_data.shape) == 1:  # (D,)
+                state_data = np.expand_dims(state_data, axis=0)  # (1, D)
+            
+            # Use a standard key name for joint state
+            processed_data['state.joint_state'] = state_data
+            logger.info(f"Processed joint state with shape {state_data.shape}")
+    
+    # Check if we have the required data
+    camera_keys = [key for key in processed_data.keys() if key.startswith('video.')]
+    if not camera_keys:
+        raise ValueError("No camera views found in the data")
+        
+    if 'state.joint_state' not in processed_data:
+        raise ValueError("Joint state data is required")
 
-        # Ensure images are numpy arrays with correct shape
-        if not isinstance(ego_image_array, np.ndarray):
-            raise ValueError(f"Ego image must be a numpy array, got {type(ego_image_array)}")
-        
-        if not isinstance(wrist_image_array, np.ndarray):
-            raise ValueError(f"Wrist image must be a numpy array, got {type(wrist_image_array)}")
-        
-        if not isinstance(joint_state, np.ndarray):
-            if isinstance(joint_state, list):
-                joint_state = np.array(joint_state, dtype=np.float32)
-            else:
-                raise ValueError(f"Joint state must be a numpy array or list, got {type(joint_state)}")
+    # Set the task description for the model
+    policy.task_description = prompt
 
-        if ego_image_array.shape[-3:-1] != (256, 256):
-            logger.info("Resizing ego image to 256x256")
-            # Convert to PIL Image for resizing
-            if len(ego_image_array.shape) == 4:  # (1, H, W, C)
-                resized_images = []
-                for img in ego_image_array:
-                    pil_img = Image.fromarray(img.astype(np.uint8))
-                    resized_img = pil_img.resize((256, 256), Image.BILINEAR)
-                    resized_images.append(np.array(resized_img))
-                ego_image_array = np.stack(resized_images)
-            else:  # (H, W, C)
-                pil_img = Image.fromarray(ego_image_array.astype(np.uint8))
-                resized_img = pil_img.resize((256, 256), Image.BILINEAR)
-                ego_image_array = np.array(resized_img)
-        
-        if wrist_image_array.shape[-3:-1] != (256, 256):
-            logger.info("Resizing wrist image to 256x256")
-            # Convert to PIL Image for resizing
-            if len(wrist_image_array.shape) == 4:  # (1, H, W, C)
-                resized_images = []
-                for img in wrist_image_array:
-                    pil_img = Image.fromarray(img.astype(np.uint8))
-                    resized_img = pil_img.resize((256, 256), Image.BILINEAR)
-                    resized_images.append(np.array(resized_img))
-                wrist_image_array = np.stack(resized_images)
-            else:  # (H, W, C)
-                pil_img = Image.fromarray(wrist_image_array.astype(np.uint8))
-                resized_img = pil_img.resize((256, 256), Image.BILINEAR)
-                wrist_image_array = np.array(resized_img)
-        
-        # Set the task description for the model
-        policy.task_description = prompt
-        
-        # Add batch dimension if needed
-        if len(ego_image_array.shape) == 3:  # (H, W, C)
-            ego_image_array = np.expand_dims(ego_image_array, axis=0)  # (1, H, W, C)
-        if len(wrist_image_array.shape) == 3:  # (H, W, C)
-            wrist_image_array = np.expand_dims(wrist_image_array, axis=0)  # (1, H, W, C)
-        if len(joint_state.shape) == 1:  # (D,)
-            joint_state = np.expand_dims(joint_state, axis=0)  # (1, D)
+    # The processed_data dictionary now contains all the properly formatted data for GR00T
+    # with proper keys like 'video.base_view', 'video.wrist_view', etc.
+    # and 'state.joint_state' for the robot state
+    # logger.info(f"Processed data: {processed_data}, keys: {processed_data.keys()}, type per value: {[(k, type(v)) for k, v in processed_data.items()]}")
+    # Step the model with the observation to get actions
+    action_chunk = policy.get_action(processed_data)['action.ee_action']
 
-        # map the obs to gr00t-compatibility format
-        obs = {
-            "video.ego_view": ego_image_array,
-            "video.wrist_view": wrist_image_array,
-            "state.joint_state": joint_state,
-            "annotation.human.action.task_description": [prompt],
-        }
-        logger.info(f"Processing observation with shapes: ego_view={ego_image_array.shape}, wrist_view={wrist_image_array.shape}, joint_state={joint_state.shape}")
-        # Step the model with the observation to get actions
-        action_chunk = policy.get_action(obs)['action.ee_action']
-        
-        logger.info(f"Generated action chunk shape: {action_chunk.shape}")
-        return {
-            'actions': action_chunk,
-            'status': 'success'
-        }
-    else:
-        missing_keys = []
-        if 'video.ego_view' not in observation: 
-            missing_keys.append('video.ego_view')
-        if 'video.wrist_view' not in observation:
-            missing_keys.append('video.wrist_view')
-        if 'state.joint_state' not in observation:
-            missing_keys.append('state.joint_state')
-        if 'annotation.human.action.task_description' not in observation:
-            missing_keys.append('annotation.human.action.task_description')
+    logger.info(f"Generated action chunk shape: {action_chunk.shape}")
+    return {
+        'actions': action_chunk,
+        'status': 'success'
+    }
+    missing_keys = []
+    if 'video.base_front_view' not in processed_data:
+        missing_keys.append('video.base_front_view')
+    if 'video.wrist_view' not in processed_data:
+        missing_keys.append('video.wrist_view')
+    if 'state.joint_state' not in processed_data:
+        missing_keys.append('state.joint_state')
+    if 'annotation.human.action.task_description' not in processed_data:
+        missing_keys.append('annotation.human.action.task_description')
+    if missing_keys:
         error_msg = f"Observation missing required keys: {missing_keys}"
         logger.error(error_msg)
         return {'error': error_msg, 'status': 'error'}
-    
 
 
 # WebSocket server handler
@@ -194,9 +209,9 @@ async def websocket_handler(websocket, policy):
         'capabilities': ['action_generation']
     }
     await websocket.send(msgpack_numpy.packb(metadata))
-    
+
     logger.info("Client connected. Metadata sent.")
-    
+
     try:
         async for message in websocket:
             try:
@@ -204,29 +219,49 @@ async def websocket_handler(websocket, policy):
                 data = msgpack_numpy.unpackb(message)
                 print('---------------------------------------------')
                 logger.info(f"Received data with keys: {data.keys()}")
-                
+
                 # Extract image and prompt directly from the data
-                ego_image = data.get('image')
-                wrist_image = data.get('wrist_image')
-                joint_state = data.get('joint_state')
-                prompt = data.get('prompt', '')
-                
-                logger.info(f"Processing with prompt: '{prompt}' and image shape: {ego_image.shape if ego_image is not None else 'None'}")
-                
-                # Create observation with the image for process_observation
-                observation = {
-                    'video.ego_view': ego_image, 
-                    'video.wrist_view': wrist_image, 
-                    'state.joint_state': joint_state
-                }
-                
+                # breakpoint()
+
+                inspect_list = [data.get(key) for key in data.keys()]
+                if max([x is None for x in inspect_list]):
+                    raise ValueError('the value of inspect_list is wrong')
+
                 # Process the observation and generate actions
-                result = await process_observation(policy, observation, prompt)
-                
+                result = await process_observation(policy, data)
+
                 # Send back the result
                 await websocket.send(msgpack_numpy.packb(result))
                 logger.info("Sent action response to client")
+
                 
+                # base_image = data.get('base_image')
+                # left_image = data.get('left_image')
+                # wrist_image = data.get('wrist_image')
+                # joint_state = data.get('joint_state')
+                # inspect_list = [base_image, left_image,
+                #                 wrist_image, joint_state]
+                # prompt = data.get('prompt', '')
+
+                # logger.info(
+                #     f"Processing with prompt: '{prompt}' and image shape: {base_image.shape if base_image is not None else 'None'}")
+                # if max([x is None for x in inspect_list]):
+                #     raise ValueError('the value of inspect_list is wrong')
+                # # Create observation with the image for process_observation
+                # observation = {
+                #     'video.base_view': base_image,
+                #     'video.left_view': left_image,
+                #     'video.wrist_view': wrist_image,
+                #     'state.joint_state': joint_state
+                # }
+
+                # # Process the observation and generate actions
+                # result = await process_observation(policy, observation, prompt)
+
+                # # Send back the result
+                # await websocket.send(msgpack_numpy.packb(result))
+                # logger.info("Sent action response to client")
+
             except Exception as e:
                 error_msg = f"Error processing message: {str(e)}"
                 logger.error(error_msg)
@@ -235,30 +270,34 @@ async def websocket_handler(websocket, policy):
         logger.info("Client disconnected")
 
 # Start the WebSocket server
+
+
 async def start_server(policy, host='0.0.0.0', port=8000):
     server = await websockets.serve(
-        lambda ws: websocket_handler(ws, policy), 
-        host, 
+        lambda ws: websocket_handler(ws, policy),
+        host,
         port,
         max_size=None,  # No limit on message size
         compression=None  # Disable compression for performance
     )
-    
+
     logger.info(f"WebSocket server started at ws://{host}:{port}")
-    
+
     return server
 
 # Main function
+
+
 async def main():
     global policy
-    
+
     args = parse_args()
     # Load the Gr00t model
     policy = load_model(args)
-    
+
     # Start the WebSocket server
     server = await start_server(policy, args.host, args.port)
-    
+
     # Keep the server running
     await asyncio.Future()
 

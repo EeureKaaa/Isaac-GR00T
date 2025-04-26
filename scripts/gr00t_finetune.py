@@ -48,10 +48,10 @@ class Config:
     batch_size: int = 16
     """Batch size per GPU for training."""
 
-    max_steps: int = 200000
+    max_steps: int = 600000
     """Maximum number of training steps."""
 
-    num_gpus: int = 1
+    num_gpus: int = 4
     """Number of GPUs to use for training."""
 
     save_steps: int = 10000
@@ -219,8 +219,8 @@ if __name__ == "__main__":
             # Multi-GPU mode - use torchrun
             script_path = Path(__file__).absolute()
             # Remove any existing CUDA_VISIBLE_DEVICES from environment
-            if "CUDA_VISIBLE_DEVICES" in os.environ:
-                del os.environ["CUDA_VISIBLE_DEVICES"]
+            # if "CUDA_VISIBLE_DEVICES" in os.environ:
+            #     del os.environ["CUDA_VISIBLE_DEVICES"]
 
             # Use subprocess.run instead of os.system
             cmd = [
@@ -244,6 +244,7 @@ if __name__ == "__main__":
                     cmd.append(f"--{key.replace('_', '-')}")
                     cmd.append(str(value))
             print("Running torchrun command: ", cmd)
+            # breakpoint()
             env = os.environ.copy()
             env["IS_TORCHRUN"] = "1"
             sys.exit(subprocess.run(cmd, env=env).returncode)
