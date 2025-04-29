@@ -69,7 +69,8 @@ class Gr00tPolicy(BasePolicy):
         modality_config: Dict[str, ModalityConfig],
         modality_transform: ComposedModalityTransform,
         denoising_steps: Optional[int] = None,
-        device: Union[int, str] = "cuda" if torch.cuda.is_available() else "cpu",
+        device: Union[int,
+                      str] = "cuda" if torch.cuda.is_available() else "cpu",
     ):
         """
         Initialize the Gr00tPolicy.
@@ -172,7 +173,8 @@ class Gr00tPolicy(BasePolicy):
         # Apply transforms
         normalized_input = self.apply_transforms(observations)
 
-        normalized_action = self._get_action_from_normalized_input(normalized_input)
+        normalized_action = self._get_action_from_normalized_input(
+            normalized_input)
         unnormalized_action = self._get_unnormalized_action(normalized_action)
 
         if not is_batch:
@@ -253,7 +255,7 @@ class Gr00tPolicy(BasePolicy):
             )
 
         metadata = DatasetMetadata.model_validate(metadata_dict)
-
+        # breakpoint()
         self._modality_transform.set_metadata(metadata)
         self.metadata = metadata
 
@@ -261,12 +263,14 @@ class Gr00tPolicy(BasePolicy):
         """Load the horizons needed for the model."""
         # Get modality configs
         # Video horizons
-        self._video_delta_indices = np.array(self._modality_config["video"].delta_indices)
+        self._video_delta_indices = np.array(
+            self._modality_config["video"].delta_indices)
         self._assert_delta_indices(self._video_delta_indices)
         self._video_horizon = len(self._video_delta_indices)
         # State horizons (if used)
         if "state" in self._modality_config:
-            self._state_delta_indices = np.array(self._modality_config["state"].delta_indices)
+            self._state_delta_indices = np.array(
+                self._modality_config["state"].delta_indices)
             self._assert_delta_indices(self._state_delta_indices)
             self._state_horizon = len(self._state_delta_indices)
         else:
@@ -285,7 +289,8 @@ class Gr00tPolicy(BasePolicy):
                 np.diff(delta_indices) == delta_indices[1] - delta_indices[0]
             ), f"{delta_indices=}"
             # And the step is positive
-            assert (delta_indices[1] - delta_indices[0]) > 0, f"{delta_indices=}"
+            assert (delta_indices[1] - delta_indices[0]
+                    ) > 0, f"{delta_indices=}"
 
 
 #######################################################################################################
