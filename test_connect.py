@@ -227,6 +227,8 @@ async def websocket_handler(websocket, policy):
                 if max([x is None for x in inspect_list]):
                     raise ValueError('the value of inspect_list is wrong')
 
+                logger.info(f"Processing with prompt: '{data['prompt']}'")
+
                 # Process the observation and generate actions
                 result = await process_observation(policy, data)
 
