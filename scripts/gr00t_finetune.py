@@ -36,7 +36,7 @@ class Config:
     """Configuration for GR00T model fine-tuning."""
 
     # Dataset parameters
-    dataset_path: str = "/home/wangxianhao/data/project/reasoning/openpi/gr00t_dataset/primitive_dataset"
+    dataset_path: str = "/home/wangxianhao/data/project/reasoning/openpi/gr00t_dataset/primitive_dataset_v4"
     """Path to the dataset directory."""
 
     output_dir: str = "/tmp/gr00t"

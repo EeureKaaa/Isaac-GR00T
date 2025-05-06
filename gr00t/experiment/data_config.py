@@ -676,7 +676,7 @@ class Gr1ArmsWaistDataConfig(Gr1ArmsOnlyDataConfig):
 
 
 class CustomCoinDataConfig(BaseDataConfig):
-    video_keys = ["video.base_front_view", "video.wrist_view", "video.left_view"]
+    video_keys = ["video.base_front_view", "video.wrist_view", "video.human_view"]
     state_keys = ["state.joint_state"]
     action_keys = ["action.ee_action"]
     language_keys = ["annotation.human.action.task_description"]

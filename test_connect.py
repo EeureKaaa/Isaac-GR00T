@@ -141,7 +141,7 @@ async def process_observation(policy, data):
             
             # Determine the video key name
             # Replace 'image' with 'view' in the key name
-            video_key = f"video.{key.replace('image', 'view')}"
+            video_key = f"video.{key.replace('image', 'view').replace('observation/', '')}"
             processed_data[video_key] = processed_image
             
             logger.info(f"Converted '{key}' to '{video_key}' with shape {processed_image.shape}")
